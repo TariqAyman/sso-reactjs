@@ -1,7 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth-context';
+import NafathLogin from '@/components/NafathLogin';
 import { ArrowLeft, Shield, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 
 export default function LoginPage() {
@@ -145,6 +149,22 @@ export default function LoginPage() {
                 {isLoading ? 'Signing in...' : 'Sign in'}
               </button>
             </form>
+
+            {/* Nafath Login Section */}
+            <div className="mt-8">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="bg-white px-2 text-gray-500">Or continue with</span>
+                </div>
+              </div>
+              
+              <div className="mt-6">
+                <NafathLogin />
+              </div>
+            </div>
 
             <div className="mt-8 text-center">
               <p className="text-gray-600">

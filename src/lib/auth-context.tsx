@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { api } from './api';
 import type { User } from '@/types';
@@ -9,6 +10,8 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithNafath: (nationalId: string, channel?: 'PUSH' | 'QR') => Promise<string>; // Returns transaction ID
+  verifyNafathTransaction: (transactionId: string) => Promise<void>;
   logout: () => void;
   token: string | null;
 }
@@ -32,20 +35,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
+    const login = async (email: string, password: string) => {
     try {
-      const response = await api.post('/auth/login', { email, password });
-      const { token: newToken, user: userData } = response.data;
+      setLoading(true);
+      const response = await axios.post('/api/auth/login', { email, password });
       
-      setToken(newToken);
-      setUser(userData);
-      
-      localStorage.setItem('sso_token', newToken);
-      localStorage.setItem('sso_user', JSON.stringify(userData));
-      
-      router.push('/dashboard');
+      if (response.data.token) {
+        setToken(response.data.token);
+        setUser(response.data.user);
+      }
     } catch (error) {
+      console.error('Login failed:', error);
       throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loginWithNafath = async (nationalId: string, channel: 'PUSH' | 'QR' = 'PUSH'): Promise<string> => {
+    try {
+      setLoading(true);
+      const response = await axios.post('/api/auth/nafath/initiate', { nationalId, channel });
+      return response.data.transactionId;
+    } catch (error) {
+      console.error('Nafath initiation failed:', error);
+      setLoading(false);
+      throw error;
+    }
+  };
+
+  const verifyNafathTransaction = async (transactionId: string) => {
+    try {
+      const response = await axios.post('/api/auth/nafath/verify', { transactionId });
+      
+      if (response.data.token) {
+        setToken(response.data.token);
+        setUser(response.data.user);
+      }
+    } catch (error) {
+      console.error('Nafath verification failed:', error);
+      throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -57,10 +88,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push('/login');
   };
 
-  const value = {
+  const value: AuthContextType = {
     user,
     loading,
     login,
+    loginWithNafath,
+    verifyNafathTransaction,
     logout,
     token
   };
