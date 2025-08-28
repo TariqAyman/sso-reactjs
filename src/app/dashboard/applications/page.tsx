@@ -34,9 +34,9 @@ export default function ApplicationsPage() {
     },
   });
 
-  const handleDelete = async (id: number, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (window.confirm(`Are you sure you want to delete "${name}"?`)) {
-      deleteMutation.mutate(id.toString());
+      deleteMutation.mutate(id);
     }
   };
 

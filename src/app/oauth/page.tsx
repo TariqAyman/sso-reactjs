@@ -35,7 +35,7 @@ export default function OAuthPage() {
 
   useEffect(() => {
     // Build authorization URL
-    const baseUrl = 'http://localhost:3000';
+    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: clientId,
@@ -44,7 +44,7 @@ export default function OAuthPage() {
       state: state,
     });
     
-    setAuthUrl(`${baseUrl}/oauth/authorize?${params.toString()}`);
+    setAuthUrl(`${baseUrl}/api/v1/oauth/authorize?${params.toString()}`);
   }, [clientId, redirectUri, scope, state]);
 
   const handleAuthorize = () => {

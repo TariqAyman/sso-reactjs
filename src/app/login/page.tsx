@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth } from '@/contexts/AuthContext';
 import NafathLogin from '@/components/NafathLogin';
+import SocialLogin from '@/components/SocialLogin';
 import { ArrowLeft, Shield, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 
 export default function LoginPage() {
@@ -23,7 +24,7 @@ export default function LoginPage() {
     setError('');
 
     try {
-      await login(email, password);
+      await login({ email, password });
     } catch (error: any) {
       setError(error.response?.data?.message || 'Login failed');
     } finally {
@@ -150,7 +151,7 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {/* Nafath Login Section */}
+            {/* Authentication Methods */}
             <div className="mt-8">
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -161,7 +162,8 @@ export default function LoginPage() {
                 </div>
               </div>
               
-              <div className="mt-6">
+              <div className="mt-6 space-y-4">
+                <SocialLogin />
                 <NafathLogin />
               </div>
             </div>

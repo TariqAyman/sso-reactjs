@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { QrCode, Smartphone, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth } from '@/contexts/AuthContext';
+import { authAPI } from '@/lib/api';
+import { NafathInitiateRequest, NafathStatusResponse } from '@/types';
 
 interface NafathLoginProps {
   onSuccess?: (token: string) => void;
@@ -11,35 +13,39 @@ interface NafathLoginProps {
 }
 
 export default function NafathLogin({ onSuccess, onError }: NafathLoginProps) {
-  const [nationalId, setNationalId] = useState('');
+  const [purpose, setPurpose] = useState('authentication');
+  const [serviceId, setServiceId] = useState('');
+  const [random, setRandom] = useState('');
   const [transactionId, setTransactionId] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [deepLink, setDeepLink] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'initiating' | 'pending' | 'approved' | 'rejected' | 'expired'>('idle');
-  const [channel, setChannel] = useState<'PUSH' | 'QR'>('PUSH');
   const [error, setError] = useState('');
   const [timeLeft, setTimeLeft] = useState(0);
   
-  const { loginWithNafath, verifyNafathTransaction } = useAuth();
+  const { updateUser } = useAuth();
   const router = useRouter();
+
+  // Generate random string for Nafath
+  useEffect(() => {
+    setRandom(Math.random().toString(36).substring(2, 15));
+  }, []);
 
   // Poll for status updates
   useEffect(() => {
     if (transactionId && status === 'pending') {
       const interval = setInterval(async () => {
         try {
-          const response = await fetch(`/api/auth/nafath/status/${transactionId}`);
-          const data = await response.json();
+          const response = await authAPI.nafathStatus(transactionId);
+          const data: NafathStatusResponse = response.data;
           
           if (data.status === 'APPROVED') {
             setStatus('approved');
-            // Verify the transaction using auth context
-            try {
-              await verifyNafathTransaction(transactionId);
+            // User is now authenticated, the response should contain user data
+            if (data.result?.user) {
+              updateUser(data.result.user);
               onSuccess?.('success');
-              router.push('/dashboard'); // Redirect to dashboard on success
-            } catch (error) {
-              setError('Verification failed');
-              onError?.('Verification failed');
+              router.push('/dashboard');
             }
           } else if (data.status === 'REJECTED') {
             setStatus('rejected');
@@ -57,7 +63,7 @@ export default function NafathLogin({ onSuccess, onError }: NafathLoginProps) {
 
       return () => clearInterval(interval);
     }
-  }, [transactionId, status, onSuccess, onError]);
+  }, [transactionId, status, onSuccess, onError, updateUser, router]);
 
   // Countdown timer
   useEffect(() => {
@@ -71,13 +77,8 @@ export default function NafathLogin({ onSuccess, onError }: NafathLoginProps) {
   }, [timeLeft, status]);
 
   const initiate = async () => {
-    if (!nationalId.trim()) {
-      setError('Please enter your National ID');
-      return;
-    }
-
-    if (!/^[12]\d{9}$/.test(nationalId)) {
-      setError('Please enter a valid 10-digit National ID starting with 1 or 2');
+    if (!serviceId.trim()) {
+      setError('Please enter a service ID');
       return;
     }
 
@@ -85,20 +86,26 @@ export default function NafathLogin({ onSuccess, onError }: NafathLoginProps) {
     setError('');
 
     try {
-      const transactionId = await loginWithNafath(nationalId, channel);
-      setTransactionId(transactionId);
+      const nafathData: NafathInitiateRequest = {
+        purpose,
+        serviceId: serviceId.trim(),
+        random,
+      };
+
+      const response = await authAPI.nafathInitiate(nafathData);
+      const data = response.data;
       
-      // Get additional details like QR code if needed
-      const response = await fetch(`/api/auth/nafath/status/${transactionId}`);
-      const data = await response.json();
-      setQrCode(data.qrCode);
+      setTransactionId(data.transactionId);
+      setQrCode(data.qrCodeUrl || null);
+      setDeepLink(data.deepLinkUrl || null);
       
       setStatus('pending');
       setTimeLeft(300); // 5 minutes default
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to initiate authentication');
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to initiate authentication';
+      setError(errorMessage);
       setStatus('idle');
-      onError?.(err instanceof Error ? err.message : 'Failed to initiate authentication');
+      onError?.(errorMessage);
     }
   };
 
@@ -154,51 +161,35 @@ export default function NafathLogin({ onSuccess, onError }: NafathLoginProps) {
 
           <div className="space-y-4">
             <div>
-              <label htmlFor="nationalId" className="block text-sm font-medium text-gray-700 mb-2">
-                National ID / Iqama Number
+              <label htmlFor="serviceId" className="block text-sm font-medium text-gray-700 mb-2">
+                Service ID
               </label>
               <input
                 type="text"
-                id="nationalId"
-                value={nationalId}
-                onChange={(e) => setNationalId(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                placeholder="1234567890"
+                id="serviceId"
+                value={serviceId}
+                onChange={(e) => setServiceId(e.target.value)}
+                placeholder="Enter service ID"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                maxLength={10}
                 disabled={status === 'initiating'}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Authentication Method
+              <label htmlFor="purpose" className="block text-sm font-medium text-gray-700 mb-2">
+                Purpose
               </label>
-              <div className="flex space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setChannel('PUSH')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md border ${
-                    channel === 'PUSH'
-                      ? 'bg-green-50 border-green-500 text-green-700'
-                      : 'bg-white border-gray-300 text-gray-600'
-                  }`}
-                >
-                  <Smartphone className="h-4 w-4" />
-                  Push Notification
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setChannel('QR')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md border ${
-                    channel === 'QR'
-                      ? 'bg-green-50 border-green-500 text-green-700'
-                      : 'bg-white border-gray-300 text-gray-600'
-                  }`}
-                >
-                  <QrCode className="h-4 w-4" />
-                  QR Code
-                </button>
-              </div>
+              <select
+                id="purpose"
+                value={purpose}
+                onChange={(e) => setPurpose(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                disabled={status === 'initiating'}
+              >
+                <option value="authentication">Authentication</option>
+                <option value="signature">Digital Signature</option>
+                <option value="verification">Identity Verification</option>
+              </select>
             </div>
 
             {error && (
@@ -209,7 +200,7 @@ export default function NafathLogin({ onSuccess, onError }: NafathLoginProps) {
 
             <button
               onClick={initiate}
-              disabled={status === 'initiating' || !nationalId.trim()}
+              disabled={status === 'initiating' || !serviceId.trim()}
               className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {status === 'initiating' ? 'Initiating...' : 'Authenticate with Nafath'}
@@ -238,10 +229,7 @@ export default function NafathLogin({ onSuccess, onError }: NafathLoginProps) {
           {status === 'pending' && (
             <>
               <p className="text-gray-600 mb-4">
-                {channel === 'PUSH' 
-                  ? 'Please approve the authentication request in your Nafath app'
-                  : 'Please scan the QR code with your Nafath app'
-                }
+                Please approve the authentication request in your Nafath app or scan the QR code below
               </p>
               
               {timeLeft > 0 && (
@@ -250,13 +238,25 @@ export default function NafathLogin({ onSuccess, onError }: NafathLoginProps) {
                 </div>
               )}
 
-              {qrCode && channel === 'QR' && (
+              {qrCode && (
                 <div className="mb-4">
                   <img 
                     src={qrCode} 
                     alt="Nafath QR Code" 
                     className="mx-auto max-w-48 max-h-48"
                   />
+                </div>
+              )}
+
+              {deepLink && (
+                <div className="mb-4">
+                  <a
+                    href={deepLink}
+                    className="inline-flex items-center gap-2 text-green-600 hover:text-green-700 underline"
+                  >
+                    <Smartphone className="h-4 w-4" />
+                    Open in Nafath App
+                  </a>
                 </div>
               )}
             </>

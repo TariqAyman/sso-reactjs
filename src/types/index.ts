@@ -39,10 +39,67 @@ export interface RegisterRequest {
 }
 
 /**
+ * Social Authentication types
+ */
+export interface SocialProvider {
+  name: string;
+  displayName: string;
+  authUrl: string;
+  enabled: boolean;
+}
+
+/**
+ * Nafath Authentication types
+ */
+export interface NafathInitiateRequest {
+  purpose: string;
+  serviceId: string;
+  random: string;
+}
+
+export interface NafathInitiateResponse {
+  transactionId: string;
+  qrCodeUrl?: string;
+  deepLinkUrl?: string;
+  status: string;
+}
+
+export interface NafathStatusResponse {
+  status: string;
+  result?: any;
+  error?: string;
+}
+
+export interface NafathVerifyRequest {
+  transactionId: string;
+  authCode: string;
+}
+
+/**
+ * Profile Management types
+ */
+export interface UpdateProfileRequest {
+  firstName?: string;
+  lastName?: string;
+  avatar?: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+export interface TwoFactorRequest {
+  enable: boolean;
+  code?: string;
+}
+
+/**
  * SSO Application types
  */
 export interface SsoApplication {
-  id: number;
+  id: string; // Changed from number to string (UUID)
   applicationName: string;
   applicationUrl: string;
   clientId: string;
@@ -81,7 +138,7 @@ export interface UpdateSsoApplicationRequest
  * Webhook types
  */
 export interface WebhookLog {
-  id: number;
+  id: string; // Changed from number to string (UUID)
   event: string;
   payload: string;
   response?: string;
@@ -93,7 +150,7 @@ export interface WebhookLog {
   nextRetryAt?: string;
   createdAt: string;
   ssoApplication: {
-    id: number;
+    id: string; // Changed from number to string (UUID)
     applicationName: string;
     clientId: string;
     webhookUrl?: string;
@@ -154,7 +211,7 @@ export interface DashboardStats {
 }
 
 export interface ApplicationUsageStats {
-  applicationId: number;
+  applicationId: string; // Changed from number to string (UUID)
   applicationName: string;
   totalRequests: number;
   successfulRequests: number;

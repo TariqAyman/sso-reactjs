@@ -1,8 +1,8 @@
 'use client';
 
-import { useAuth } from '@/lib/auth-context';
+import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
-import { ssoAPI, oauthAPI } from '@/lib/api';
+import { ssoAPI, webhooksAPI } from '@/lib/api';
 import { 
   Shield, 
   Settings, 
@@ -26,17 +26,12 @@ export default function DashboardPage() {
   // Fetch dashboard data
   const { data: applications } = useQuery({
     queryKey: ['applications'],
-    queryFn: () => ssoAPI.getApplications().then(res => res.data),
-  });
-
-  const { data: oauthClients } = useQuery({
-    queryKey: ['oauth-clients'],
-    queryFn: () => oauthAPI.getClients().then(res => res.data),
+    queryFn: () => ssoAPI.getApplications().then((res: any) => res.data),
   });
 
   const { data: webhooks } = useQuery({
     queryKey: ['webhooks'],
-    queryFn: () => ssoAPI.getWebhooks().then(res => res.data),
+    queryFn: () => webhooksAPI.getLogs().then((res: any) => res.data),
   });
 
   if (!user) {
@@ -142,20 +137,11 @@ export default function DashboardPage() {
 
           <div className="stat bg-base-100 border border-base-300 rounded-lg">
             <div className="stat-figure text-secondary">
-              <Server className="h-8 w-8" />
-            </div>
-            <div className="stat-title">OAuth Clients</div>
-            <div className="stat-value text-secondary">{oauthClients?.length || 0}</div>
-            <div className="stat-desc">Configured clients</div>
-          </div>
-
-          <div className="stat bg-base-100 border border-base-300 rounded-lg">
-            <div className="stat-figure text-accent">
               <Webhook className="h-8 w-8" />
             </div>
-            <div className="stat-title">Webhooks</div>
-            <div className="stat-value text-accent">{webhooks?.length || 0}</div>
-            <div className="stat-desc">Active endpoints</div>
+            <div className="stat-title">Webhook Logs</div>
+            <div className="stat-value text-secondary">{webhooks?.data?.length || 0}</div>
+            <div className="stat-desc">Recent webhook events</div>
           </div>
 
           <div className="stat bg-base-100 border border-base-300 rounded-lg">

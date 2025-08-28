@@ -1,7 +1,7 @@
 'use client';
 
 import type { NextPage } from 'next';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth } from '@/contexts/AuthContext';
 import { ChevronRight, Shield, Server, Webhook, Users, Globe, Lock } from 'lucide-react';
 
 const HomePage: NextPage = () => {

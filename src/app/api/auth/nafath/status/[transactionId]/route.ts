@@ -5,10 +5,10 @@ const BACKEND_URL =
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { transactionId: string } }
+  context: { params: Promise<{ transactionId: string }> }
 ) {
   try {
-    const { transactionId } = params;
+    const { transactionId } = await context.params;
 
     const response = await fetch(
       `${BACKEND_URL}/api/auth/nafath/status/${transactionId}`,
