@@ -1,83 +1,134 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import axios from 'axios';
+'use client'
 
-interface User {
-  id: number;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-}
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { User, LoginRequest, LoginResponse } from '@/types'
+import { authAPI } from '@/lib/api'
+import { STORAGE_KEYS } from '@/lib/constants'
 
 interface AuthContextType {
-  user: User | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  checkAuth: () => Promise<void>;
+  user: User | null
+  isLoading: boolean
+  isAuthenticated: boolean
+  login: (credentials: LoginRequest) => Promise<void>
+  logout: () => void
+  updateUser: (user: User) => void
+  refreshToken: () => Promise<void>
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const isAuthenticated = !!user
 
-  // Configure axios defaults
-  axios.defaults.baseURL = API_BASE_URL;
-  axios.defaults.withCredentials = true;
-
-  const checkAuth = async () => {
-    try {
-      const response = await axios.get('/auth/profile');
-      setUser(response.data);
-    } catch (error) {
-      setUser(null);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    const initAuth = async () => {
+      const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN)
+      const storedUser = localStorage.getItem(STORAGE_KEYS.USER_DATA)
+      
+      if (token && storedUser) {
+        try {
+          setUser(JSON.parse(storedUser))
+          // Verify token is still valid
+          const response = await authAPI.getProfile()
+          setUser(response.data)
+          localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data))
+        } catch (error) {
+          console.error('Failed to fetch user profile:', error)
+          // Try to refresh token
+          const refreshToken = localStorage.getItem('sso_refresh_token')
+          if (refreshToken) {
+            try {
+              await refreshTokenInternal()
+            } catch (refreshError) {
+              console.error('Failed to refresh token:', refreshError)
+              logout()
+            }
+          } else {
+            logout()
+          }
+        }
+      }
+      setIsLoading(false)
     }
-  };
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    try {
-      const response = await axios.post('/auth/login', { email, password });
-      setUser(response.data.user);
-      return true;
-    } catch (error) {
-      return false;
+    initAuth()
+  }, [])
+
+  const refreshTokenInternal = async () => {
+    const refreshToken = localStorage.getItem('sso_refresh_token')
+    if (!refreshToken) {
+      throw new Error('No refresh token available')
     }
-  };
+
+    const response = await authAPI.refresh(refreshToken)
+    const { access_token, user: userData } = response.data
+
+    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, access_token)
+    localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userData))
+    setUser(userData)
+  }
+
+  const login = async (credentials: LoginRequest) => {
+    try {
+      const response = await authAPI.login(credentials)
+      const { access_token, refresh_token, user: userData } = response.data
+
+      localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, access_token)
+      localStorage.setItem('sso_refresh_token', refresh_token)
+      localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userData))
+      setUser(userData)
+    } catch (error) {
+      throw error
+    }
+  }
 
   const logout = async () => {
     try {
-      await axios.post('/auth/logout');
+      await authAPI.logout()
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('Logout error:', error)
     } finally {
-      setUser(null);
+      localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
+      localStorage.removeItem('sso_refresh_token')
+      localStorage.removeItem(STORAGE_KEYS.USER_DATA)
+      setUser(null)
+      window.location.href = '/login'
     }
-  };
-
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const value: AuthContextType = {
-    user,
-    loading,
-    login,
-    logout,
-    checkAuth,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
   }
-  return context;
-};
+
+  const updateUser = (updatedUser: User) => {
+    setUser(updatedUser)
+    localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(updatedUser))
+  }
+
+  const refreshToken = async () => {
+    await refreshTokenInternal()
+  }
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        isAuthenticated,
+        login,
+        logout,
+        updateUser,
+        refreshToken,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
+}
