@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { 
   ArrowLeft, 
@@ -15,7 +15,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-export default function OAuthPage() {
+function OAuthContent() {
   const [clientId, setClientId] = useState('your-client-id');
   const [redirectUri, setRedirectUri] = useState('http://localhost:3001/oauth/callback');
   const [scope, setScope] = useState('openid profile email');
@@ -362,5 +362,20 @@ const handleCallback = async (code, state) => {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function OAuthPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-white to-secondary/5 flex items-center justify-center">
+        <div className="text-center">
+          <div className="loading loading-spinner loading-lg mb-4"></div>
+          <p className="text-gray-600">Loading OAuth testing page...</p>
+        </div>
+      </div>
+    }>
+      <OAuthContent />
+    </Suspense>
   );
 }
